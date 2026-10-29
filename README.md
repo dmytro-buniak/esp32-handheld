@@ -1,6 +1,6 @@
 
 Yellow:	TP4056 module	Charges the Li-ion battery <br>
-Grass: green	0.96" OLED (SSD1306)	Display <br>
+Grass green:	0.96" OLED (SSD1306)	Display <br>
 Blue:	Four tact switches	User input <br>
 Brown:	Battery bay	Holds the Li-ion cell <br>
 Pink:	Magnetic pogo-pin connector	charging <br>
