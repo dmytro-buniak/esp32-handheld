@@ -5,9 +5,14 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
+
 using namespace reactesp;
 
+
+
+
 EventLoop event_loop;
+
 
 //buttons
 const int BUTTON_UP = 25;
@@ -15,30 +20,37 @@ const int BUTTON_DOWN = 26;
 const int BUTTON_SELECT = 27;
 const int BUTTON_BACK = 13;
 
+
 const int BATTERY = 39;
 const int REED_SWITCH = 34;
+
 
 const float Rtop = 100000.0;
 const float Rbottom = 100000.0;
 const float DIV = Rbottom / (Rtop + Rbottom);
 
+
 float calib = 0.98;
+
 
 unsigned long lastReedFall[2] = { 0, 0 };
 int reedFallCounter = 0;
 unsigned int stopWatch[3] = { 0, 0, 0 };
 
+
 bool riding_mode = false;
+
 
 const int SCREEN_WIDTH = 128;  // OLED width, in pixels
 const int SCREEN_HEIGHT = 64;  // OLED height, in pixels
+
 
 enum MENU_DEPTH {
   MAIN_MENU,
   SUB_MENU,
   SUB_SUB_MENU,
-  FILE_MANAGER,
-  RIDING
+  RIDING,
+  FILE_MANAGER
 };
 enum MENU_DEPTH_ACTIONS {
   INCREASE,
@@ -87,32 +99,24 @@ enum BUTTONS_COMBOS {
 };
 BUTTONS pressedButton;
 
-class Debug {
-private:
-
-public:
-  void whatIsHappening(int whatToPrint, const char whatToSay[]) {
-    Serial.print(whatToSay);
-    Serial.print(": ");
-    Serial.print(whatToPrint);
-    Serial.print("\n");
-  }
-};
 
 class MyDispaly : public Adafruit_SSD1306 {
 private:
   uint8_t *frontBuffer;
   uint8_t *backBuffer;
 
+
 public:
   MyDispaly(int w, int h, TwoWire *twi = &Wire, int8_t rst_pin = -1)
     : Adafruit_SSD1306(w, h, twi, rst_pin) {}
+
 
   void setBuffers(uint8_t *front, uint8_t *back) {
     frontBuffer = front;
     backBuffer = back;
     this->buffer = frontBuffer;
   }
+
 
   void setBuffer(uint8_t *buffer) {
     this->buffer = buffer;
@@ -125,6 +129,7 @@ public:
     this->buffer = frontBuffer;
   }
 
+
   void show() {
     this->display();
   }
@@ -134,14 +139,19 @@ public:
   }
 };
 
+
 MyDispaly display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 uint8_t bufferA[1024];
 uint8_t bufferB[1024];
 
+
 class HANDLE_ON_DISPLAY_PRINT {
 private:
-  Debug debug;
+  const char *print_this_menu[4];
+
+
 public:
+
 
   //default position on the screen. Y - 128 X - 64
   int cursorPositionY = 1;
@@ -154,13 +164,14 @@ public:
   const bool CLEAR_DISPLAY = true;
   const bool DONT_CLEAR_DISPLAY = false;
 
+
   const int menuLength = 3;
   const int sub_menu_length = 2;
 
-  const char *print_this_menu[4];
 
   //maine menu
   const char main_menu[4][30] = { { "Start ride" }, { "Statistics" }, { "Records" }, { "Settings" } };
+
 
   //sub menues
   //1.Start ride - 0; 2.Milage - 1; 3.Records - 2; 4.Settings - 3
@@ -171,15 +182,19 @@ public:
     { { "Battery calibration" }, { "Buttons map" }, { "File manager" } }
   };
 
+
   //file manager
   const char file_manager_items[4][30] = { { "Initialize FS" }, { "Create and write JSON" }, { "Read JSON" }, { "Print JSON" } };
 
+
   //errors
-  const char error_message[5][100] = { { "ERROR: Cursor is out of range!" }, { "ERROR! Sub menu in development" }, { "Menu.json load failed" }, { "Deserialization error" }, { "LittleFS initialization failed" } };
+  const char error_message[5][100] = { { "ERROR: The cursor is out of the range!" }, { "ERROR! The sub menu in development" }, { "Menu.json load failed" }, { "Deserialization error" }, { "LittleFS initialization failed" } };
+
 
   //cursor by default is 0, meaning on the first menu item
   int cursor = 0;
   int sub_menu_cursor = 0;
+
 
   void printMessage(int textSize, int textColor, int cursorPosX, int cursorPosY, auto const *textToPrint, bool clearOled, bool readyToPrint) {
     if (clearOled) {
@@ -208,8 +223,6 @@ public:
     float vbat = vadc / DIV * cal;
 
 
-
-
     return vbat;
   }
   void get_main_menu_array() {
@@ -218,25 +231,23 @@ public:
     }
   }
   void get_sub_menu_array(int *selected_sub_menu) {
-    debug.whatIsHappening(*selected_sub_menu, "Getting sub menu array (selected_sub_menu)");
     for (int i = 0; i <= sub_menu_length; ++i) {
       print_this_menu[i] = sub_menu[*selected_sub_menu][i];
     }
   }
   void choose_menu_to_print(int *menu_depth, int *selected_sub_menu) {
     switch (*menu_depth) {
-      case MAIN_MENU: get_main_menu_array(); break;
-      case SUB_MENU: get_sub_menu_array(selected_sub_menu); break;
+      case MAIN_MENU: get_main_menu_array();
+      case SUB_MENU: get_sub_menu_array(selected_sub_menu);
     }
   }
 
-
-  void printMenu(int *cursor, const char *menu[], int menu_length) {
+  void printMenu(int *cursor, const char *menu[]) {
     bool ready_to_print = false;
     display.setBuffer(display.getBackBuffer());
     display.clearDisplay();
-    for (int i = 0; i <= menu_length; ++i) {
-      if (i == menu_length) {
+    for (int i = 0; i <= menuLength; ++i) {
+      if (i == menuLength) {
         ready_to_print = true;
       }
       if (i != *cursor) {
@@ -253,23 +264,14 @@ public:
     }
     cursorPositionY = 0;
   }
-  const int returnMenuLength(int *menu_depth) {
-    switch (*menu_depth) {
-      case MAIN_MENU: return menuLength;
-      case SUB_MENU: return sub_menu_length;
-    }
-  }
   void print(int *cursor, int *menu_depth, int *selected_sub_menu) {
     choose_menu_to_print(menu_depth, selected_sub_menu);
-    printMenu(cursor, print_this_menu, returnMenuLength(menu_depth));
+    printMenu(cursor, print_this_menu);
   }
-
 
   void printError(int error_code) {
     printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, &error_message[error_code], CLEAR_DISPLAY, true);
   }
-
-
 
 
   void printSubSubMenu() {
@@ -294,8 +296,6 @@ public:
 };
 
 
-
-
 class FileSystemReadAndWrite {
 private:
   int cursorPositionY = 1;
@@ -314,11 +314,7 @@ private:
   const char FS_initialized[15] = "FS initialized";
 
 
-
-
 public:
-
-
 
 
   void initializeFS() {
@@ -328,8 +324,6 @@ public:
       OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, FS_initialized, CLEAR_DISPLAY, READY_TO_PRINT);
     }
   }
-
-
 
 
   void createConfigFile() {
@@ -347,16 +341,12 @@ public:
       //doc[""]
 
 
-
-
       serializeJson(doc, file);
       file.close();
       OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, confirmation, CLEAR_DISPLAY, READY_TO_PRINT);
       delay(1500);
     }
   }
-
-
 
 
   void createMenusFile() {
@@ -369,8 +359,6 @@ public:
       data.add("Start ride");
       data.add("Statistics");
       data.add("Settings");
-
-
 
 
       serializeJson(doc_array, file);
@@ -389,15 +377,11 @@ public:
       statistics.add("Total driven time");
 
 
-
-
       JsonArray settings = doc_array["Settings"].to<JsonArray>();
       settings.add("Battery calibration");
       settings.add("Button maping");
       settings.add("Language");
       settings.add("Reset statistics");
-
-
 
 
       serializeJson(doc_array, file);
@@ -417,8 +401,6 @@ public:
       doc["total_driven_time"] = "0";
 
 
-
-
       serializeJson(doc, file);
       file.close();
       doc.clear();
@@ -433,8 +415,6 @@ public:
       doc["battery_offset_title:"] = "Battery offset:";
       doc["battery_offset"] = "0.98";  //default value
       doc["battery_charge_title"] = "Battery charge:";
-
-
 
 
       serializeJson(doc, file);
@@ -454,8 +434,6 @@ public:
       doc["pin_13"] = "BUTTON_BACK";
 
 
-
-
       serializeJson(doc, file);
       file.close();
       doc.clear();
@@ -473,8 +451,6 @@ public:
       doc["polish"] = "0";
 
 
-
-
       serializeJson(doc, file);
       file.close();
       doc.clear();
@@ -490,16 +466,12 @@ public:
       doc["reset_flag"] = 0;
 
 
-
-
       serializeJson(doc, file);
       file.close();
       doc.clear();
       OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, confirmation, CLEAR_DISPLAY, READY_TO_PRINT);
     }
   }
-
-
 
 
   void readMenu(char menuOrder[][30], int menuLevel, int CountOfMenuItems) {
@@ -520,40 +492,38 @@ public:
             }
             //JsonArray menu = doc[menuLevel].as<JsonArray>();
             /*for(int i = 0; i <menu.size() && i < CountOFMenuItems; ++i)
-         {
-           const char *item = menu[i]; //get string from Json
-           strncpy(menuOrder[i], item, 29); //copy in the array
-           menuOrder[i][29] = '\0'; //just to be sure there is a terminator in the end
-         }*/
+          {
+            const char *item = menu[i]; //get string from Json
+            strncpy(menuOrder[i], item, 29); //copy in the array
+            menuOrder[i][29] = '\0'; //just to be sure there is a terminator in the end
+          }*/
           }
         }
       }
     }
     //---if oredered menu or whatever is not an array---
     /*else
- {
-   file = LittleFS.open(menuLevel, "r");
-   if(!file)
-   {
-     OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, OLED.error_message[READ_WRITE_ERROR], CLEAR_DISPLAY, READY_TO_PRINT);
-   }
-   else
-   {
-     DeserializationError error = deserializeJson(doc, file);
-     if(error)
-     {
-       OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, OLED.error_message[READ_WRITE_ERROR], CLEAR_DISPLAY, READY_TO_PRINT);
-     }
-     else
-     {
-       //JsonDocument menu = doc[]
-     }
-   }
- }*/
+  {
+    file = LittleFS.open(menuLevel, "r");
+    if(!file)
+    {
+      OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, OLED.error_message[READ_WRITE_ERROR], CLEAR_DISPLAY, READY_TO_PRINT);
+    }
+    else
+    {
+      DeserializationError error = deserializeJson(doc, file);
+      if(error)
+      {
+        OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, OLED.error_message[READ_WRITE_ERROR], CLEAR_DISPLAY, READY_TO_PRINT);
+      }
+      else
+      {
+        //JsonDocument menu = doc[]
+      }
+    }
+  }*/
   }
 };
-
-
 
 
 class RIDE {
@@ -575,15 +545,18 @@ private:
   unsigned long distance = 0;
   HANDLE_ON_DISPLAY_PRINT OLED;
 
+
 public:
   //unsigned long temp_time;
   //int RPM;
 
   double speed;
 
+
   void turnOnRidingMode() {
     riding_mode = true;
   }
+
 
   void turnOffRidingMode() {
     riding_mode = false;
@@ -594,9 +567,11 @@ public:
     speed = (reedFallCounter * wheelCircumference) * 3.6;
   }
 
+
   void calculateDistance() {
     distance += wheelCircumference;
   }
+
 
   void timeTrack() {
     stopWatch[SECONDS] += 1;
@@ -609,6 +584,7 @@ public:
       }
     }
   }
+
 
   void printSpeed() {
     cursorPositionX = 20;
@@ -625,6 +601,7 @@ public:
     OLED.printMessage(textSizeSmall, textColor, cursorPositionX, cursorPositionY, &stopWatch[HOURS], DONT_CLEAR_DISPLAY, true);
   }
 
+
   void trackingTime() {
     if (millis() - trackOfTime >= ONE_SECOND) {
       trackOfTime += ONE_SECOND;
@@ -635,6 +612,7 @@ public:
     }
   }
 
+
   bool isRidingMode() {
     if (riding_mode) {
       return true;
@@ -643,13 +621,16 @@ public:
     }
   }
 
+
   void upToSpeed() {
     trackingTime();
   }
 };
 
+
 BUTTONS HANDLE_BUTTONS_PRESSED_BUTTON;
 bool buttonFlag = false;
+
 
 class HANDLE_BUTTONS {
 private:
@@ -657,9 +638,11 @@ private:
   HANDLE_ON_DISPLAY_PRINT OLED;
   RIDE RIDE_MODE;
 
+
 public:
   BUTTONS ButtonPressed;
   unsigned long last[5];
+
 
   void onButton(BUTTONS pressedButton) {
     //remember what button was pressed
@@ -667,6 +650,7 @@ public:
     //set the button flag for activity tracker
     buttonFlag = true;
   }
+
 
   bool checkButtons(int *array) {
     bool answer;
@@ -695,9 +679,11 @@ public:
       return answer;
     }
 
+
     return answer;
   }
 };
+
 
 class HANDLE_SUB_MENU {
 private:
@@ -706,11 +692,18 @@ private:
   int pressed_buttons[4] = { NOT_PRESSED, NOT_PRESSED, NOT_PRESSED, NOT_PRESSED };
   int file_manager_cursor = 0;
 
+
+
+
 public:
 
-  void batteryCalibration(int *menu_depth) {
+
+  void batteryCalibration(int &menu_depth) {
     OLED.printSubSubMenu();
     CHECK_PRESSED_BUTTON.checkButtons(pressed_buttons);
+
+
+
 
     if (pressed_buttons[UP] == PRESSED) {
       calib += 0.01;
@@ -723,104 +716,78 @@ public:
       pressed_buttons[DOWN] = NOT_PRESSED;
     }
     if (pressed_buttons[BACK] == PRESSED) {
-      *menu_depth = SUB_MENU;
+      menu_depth = SUB_MENU;
       pressed_buttons[BACK] = NOT_PRESSED;
     }
   }
 
+
   int checkSelectedSubMenu(int *selectedSubMenuItem) {
-    if (*selectedSubMenuItem == START_RIDE) {
-      return START_RIDE;
-    }
-    if (*selectedSubMenuItem == STATISTICS) {
-      return STATISTICS;
-    }
-    if (*selectedSubMenuItem == RECORDS) {
-      return RECORDS;
-    }
-    if (*selectedSubMenuItem == SETTINGS) {
-      return SETTINGS;
-    }
+    if (*selectedSubMenuItem == START_RIDE) { return START_RIDE; }
+
+
+    if (*selectedSubMenuItem == STATISTICS) { return STATISTICS; }
+
+
+    if (*selectedSubMenuItem == RECORDS) { return RECORDS; }
+
+
+    if (*selectedSubMenuItem == SETTINGS) { return SETTINGS; }
   }
 
-  void checkSelectedSubSubMenu(int *selectedSubMenuItem, int *selectedSubSubMenuItem, int *menu_depth) {
-    if (*selectedSubMenuItem == STATISTICS) {
-      return;
-    }
-    if (*selectedSubMenuItem == RECORDS) {
-      return;
-    }
-    if (*selectedSubMenuItem == SETTINGS) {
-      if (*selectedSubSubMenuItem == BATTERY_CALIBRATION) {
-        batteryCalibration(menu_depth);
-      }
-      if (*selectedSubSubMenuItem == FILE_SYSTEM_HANDLE) {
-        *menu_depth = FILE_MANAGER;
-      }
+
+  void checkSelectedSubSubMenu(int selectedSubMenuItem, int selectedSubSubMenuItem, int &menu_depth) {
+    if (selectedSubMenuItem == STATISTICS) {}
+
+
+    if (selectedSubMenuItem == RECORDS) {}
+
+
+    if (selectedSubMenuItem == SETTINGS) {
+      if (selectedSubSubMenuItem == BATTERY_CALIBRATION) { batteryCalibration(menu_depth); }
+      if (selectedSubSubMenuItem == FILE_SYSTEM_HANDLE) { menu_depth = FILE_MANAGER; }
     }
   }
 };
+
 
 class NAVIGATION {
 private:
   HANDLE_BUTTONS PRESSED_BUTTONS;
   HANDLE_ON_DISPLAY_PRINT OLED;
   HANDLE_SUB_MENU SUB_MENU_HANDLER;
-
   const int buttons_count = 4;
-  int buttons[buttons_count] = { NOT_PRESSED, NOT_PRESSED, NOT_PRESSED, NOT_PRESSED };
-
   const bool increase = true;
   const bool decrease = false;
 
-  const int cursors_num = 4;
-  //0 - main menu, 1 - sub menu, 2 - sub sub menu, 3 - file manager_cursor
-  int cursors[cursors_num] = { 0, 0, 0, 0 };
-
-  const int length_for_menus = 2
-    //0 - main menu, 1 - sub menu, 2 - sub sub menu, 3 - file manager
-    const int menu_length[length_for_menus] = { 3, 2, 0, 0 };
-
-  //by default riding is off
-  bool riding_mode = false;
-
-  //by default 0 - main menu
-  int menu_depth = 0;
-
-  //by default 4 - not in a sub menu
-  int selected_sub_menu = NOT_IN_SUB_MENU;
-
-  //by default 5 - not in sub sub menu
-  int selected_sub_sub_menu = NOT_IN_SUB_SUB_MENU;
-
-  const int menu_levels = 4;
-  bool first_menu_print = true;
-  //0 - main menu, 1 - sub menu, 2 - sub sub menu, 3 - file manager
-  bool menu_print_state[menu_levels] = { true, true, true, true };
 
 public:
+  int buttons[4] = { NOT_PRESSED, NOT_PRESSED, NOT_PRESSED, NOT_PRESSED };
 
-  void cursorPosition(int button, int cursor, int menu) {
+
+  int cursorPosition(int ButtonPressed, int *cursor, int *menu_length) {
+
     //UP pressed and the cursor is not on the first menu item - move it one position up
-    if (button == UP && cursor > 0) {
-      cursors[cursor] -= 1;
-    }
+    if (ButtonPressed == UP && *cursor > 0) { return *cursor -= 1; }
+
+
     //Up pressed and the cursor is on the first menu item - move it to the last menu item
-    else if (button == UP && cursor == 0) {
-      cursors[cursor] = menu_length[menu];
+    else if (ButtonPressed == UP && *cursor == 0) {
+      return *cursor = *menu_length;
     }
+
+
     //DOWN pressed and the cursor is not on the last menu item - move cursor one position down
-    else if (button == DOWN && cursor != menu_length[menu]) {
-      cursors[cursor] += 1;
-    }
+    else if (ButtonPressed == DOWN && *cursor != *menu_length) { return *cursor += 1; }
+
+
     //DOWN pressed and the cursor is on the last menu item - move the cursor to the first menu position
-    else if (button == DOWN && cursor == menu_length[menu]) {
-      cursors[cursor] = 0;
+    else if (ButtonPressed == DOWN && *cursor == *menu_length) {
+      return *cursor = 0;
     }
   }
-
   //---CHANGE MENU DEPTH---
-  void change_menu_depth(MENU_DEPTH_ACTIONS ACTION) {
+  void change_menu_depth(int *menu_depth, MENU_DEPTH_ACTIONS ACTION) {
     //increase_decrease = true - meanse increase menu depth; increase_decrease = false - mease decrease menu depth
     switch (ACTION) {
       case INCREASE: ++(*menu_depth); break;
@@ -829,218 +796,319 @@ public:
       case GO_INTO_RIDE_MODE: *menu_depth = RIDING; break;
     }
   }
-
   //---GET SELECTED MENU POSITION---
-  void getSelectedMenuPosition() {
+  void getSelectedMenuPosition(int *selected_menu_position, int *cursor) {
     *selected_menu_position = *cursor;
   }
-
-  //---CHECK IF CAN BE INCREASED---
-  bool canBeIncreased() {
+  //CHECK IF CAN BE INCREASED---
+  bool couldBeIncreased(int *menu_depth) {
     if (*menu_depth < SUB_SUB_MENU) {
       return true;
     } else {
       return false;
     }
   }
-
   //---CHECK IF CAN BE DECREASED---
-  bool canBeDecreased() {
-    if (menu_depth > MAIN_MENU) {
+  bool couldBeDecreased(int *menu_depth) {
+    if (*menu_depth > MAIN_MENU) {
       return true;
     } else {
       return false;
     }
   }
-
   //---INCREASE MENU DEPTH---
-  void increaseMenuDepth() {
+  void increaseMenuDepth(int *menu_depth, int *selected_menu_position, int *cursor) {
     if (SUB_MENU_HANDLER.checkSelectedSubMenu(cursor) == START_RIDE) {
-      change_menu_depth(GO_INTO_RIDE_MODE);
+      change_menu_depth(menu_depth, GO_INTO_RIDE_MODE);
+      return;
     } else {
-      change_menu_depth(INCREASE);
-      getSelectedMenuPosition();
+      change_menu_depth(menu_depth, INCREASE);
+      getSelectedMenuPosition(selected_menu_position, cursor);
     }
   }
-
   //---DECREASE MENU DEPTH---
-  void decreaseMenuDepth() {
-    change_menu_depth(DECREASE);
+  void decreaseMenuDepth(int *menu_depth) {
+    change_menu_depth(menu_depth, DECREASE);
   }
-
   //---CHECK WHAT CAN BE DONE WITH MENU DEPTH---
-  void check_available_actions(MENU_DEPTH_ACTIONS ACTION) {
-    if (ACTION == INCREASE) {
-      if (canBeIncreased()) {
-        increaseMenuDepth();
-      } else {
-        return;
-      }
-    }
-    if (ACTION == DECREASE) {
-      if (canBeDecreased()) {
-        decreaseMenuDepth();
-      } else {
-        return;
-      }
+  void check_available_actions(int *menu_depth, int *selected_menu_position, int *cursor, MENU_DEPTH_ACTIONS ACTION) {
+    if (couldBeIncreased(menu_depth)) {
+      increaseMenuDepth(menu_depth, selected_menu_position, cursor);
+    } else if (couldBeDecreased(menu_depth)) {
+      decreaseMenuDepth(menu_depth);
     }
   }
-
-  void whatMenuJustPrinted() {
-    for (int i = 0; i <= SUB_SUB_MENU) {
-      if (menu_depth == i) {
-        menu_print_state[i] = false;
-      }
-    }
-    first_menu_print = false;
-  }
-
-  void first_print() {
-    whatMenuJustPrinted();
+  void first_print(bool *first_menu_print, int *cursor, int *menu_depth, int *selected_sub_menu) {
+    *first_menu_print = false;
     OLED.print(cursor, menu_depth, selected_sub_menu);
   }
-
+  void executeCombo(int combo, int *menu_depth) {
+    switch (combo) {
+      default:
+      case COMBO_WASNT_PRESSED: break;
+      case SUPER_BACK:
+        {
+          change_menu_depth(menu_depth, GO_TO_MAIN_MENU);
+        }
+    }
+  }
   int checkCombo() {
-    //gotta add time of press check!
     if (buttons[UP] == PRESSED && buttons[BACK] == PRESSED) {
       return SUPER_BACK;
     } else {
       return COMBO_WASNT_PRESSED;
     }
   }
-
-  void executeCombo() {
-    switch (checkCombo()) {
-      default:
-      case COMBO_WASNT_PRESSED: break;
-      case SUPER_BACK: change_menu_depth(GO_TO_MAIN_MENU); break;
-    }
-  }
-
   int isComboPressed() {
     return checkCombo();
   }
-
-  void changeCursorPosition(BUTTONS button) {
-    switch (menu_depth) {
-      case MAIN_MENU: cursorPosition(button, MAIN_MENU, MAIN_MENU); break;
-      case SUB_MENU: cursorPosition(button, SUB_MENU, SUB_MENU); break;
-      case FILE_MANAGER: cursorPosition(button, FILE_MANAGER, FILE_MANGER); break;
-    }
-  }
-
-  void moveCursorUp() {
-    changeCursorPosition(UP);
+  void moveCursorUp(int *cursor, int *menu_length) {
+    cursorPosition(UP, cursor, menu_length);
     buttons[UP] = NOT_PRESSED;
   }
-
-  void moveCursorDown() {
-    changeCursorPosition(DOWN);
+  void moveCursorDown(int *cursor, int *menu_length) {
+    cursorPosition(DOWN, cursor, menu_length);
     buttons[DOWN] = NOT_PRESSED;
   }
-
-  void moveCursor() {
+  void moveCursor(int *cursor, int *menu_length) {
     if (buttons[UP] == PRESSED) {
-      moveCursorUp();
+      moveCursorUp(cursor, menu_length);
     }
     if (buttons[DOWN] == PRESSED) {
-      moveCursorDown();
-    } else {
-      return;
+      moveCursorDown(cursor, menu_length);
     }
   }
-
   bool selectWasPressed() {
     if (buttons[SELECT] == PRESSED) {
       buttons[SELECT] = NOT_PRESSED;
       return true;
-    } else {
-      return false;
     }
   }
-
   bool backWasPressed() {
     if (buttons[BACK] == PRESSED) {
       buttons[BACK] = NOT_PRESSED;
       return true;
-    } else {
-      return false;
     }
   }
-
-  void moveThroughMenu() {
+  void moveThroughMenu(int *menu_depth, int *selected_menu_position, int *cursor) {
     if (selectWasPressed()) {
-      check_available_actions(INCREASE);
+      check_available_actions(menu_depth, selected_menu_position, cursor, INCREASE);
     }
     if (backWasPressed()) {
-      check_available_actions(DECREASE);
-    } else {
-      return;
+      check_available_actions(menu_depth, selected_menu_position, cursor, DECREASE);
     }
   }
-
-  void doWhatIsPressed() {
+  void doWhatIsPressed(int *menu_depth, int *cursor, int *menu_length, int *selected_menu_position) {
     //step 0. Get pressed buttons
     PRESSED_BUTTONS.checkButtons(buttons);
     //step 1. Check for combos
     if (isComboPressed() != COMBO_WASNT_PRESSED) {
-      executeCombo();
+      executeCombo(checkCombo(), menu_depth);
       return;
     } else {
-      moveCursor();
+      moveCursor(cursor, menu_length);
       moveThroughMenu(menu_depth, selected_menu_position, cursor);
       OLED.print(cursor, menu_depth, selected_menu_position);
     }
   }
-
-  void navigate_menu() {
-    if (first_menu_print) {
-      first_print();
+  void navigate_menu(int *cursor, int *menu_depth, int *selected_menu_position, int *menu_length, bool *first_menu_print) {
+    if (*first_menu_print) {
+      first_print(first_menu_print, cursor, menu_depth, selected_menu_position);
     } else {
-      doWhatIsPressed();
+      doWhatIsPressed(menu_depth, cursor, menu_length, selected_menu_position);
     }
   }
 };
 
+
 class HANDLE_MENU {
-
 private:
-
-  //HANDLE_BUTTONS Handle_Buttons;
-  //HANDLE_ON_DISPLAY_PRINT OLED;
+  HANDLE_BUTTONS Handle_Buttons;
+  HANDLE_ON_DISPLAY_PRINT OLED;
   HANDLE_SUB_MENU SUB_MENUS;
-  NAVIGATION Navigate;
-  Debug debug;
   FileSystemReadAndWrite File_Syste_Handler;
+  int idiot_meter = 0;  //user does something stupid too many times and they will suffer consequences
+  bool first_main_menu_print = true;
+  bool first_sub_menu_print = true;
+  bool first_file_manager_print = true;
+  const int buttonsCount = 3;
+  bool menu_depth_flag = false;
+
+
+  //by default buttons are not prssed, value 4 - NOT_PRESSED. 6 means 4 buttosn, 1 state of not pressed and a terminator
+  //by the way, array is just for the future upcoming feature of multi press, but for now it's just more difficult to get what's going on
+  int buttons[6] = { NOT_PRESSED, NOT_PRESSED, NOT_PRESSED, NOT_PRESSED };
+
+  static constexpr int main_menu_length = 3;
+  static constexpr int sub_menu_length = 2;
+
+
+  //by default riding is off
+  bool riding_mode = false;
+
+
+  //by default 0 - main menu
+  int menu_depth = 0;
+
+
+  //by default 5 - not in a sub menu
+  int selected_sub_menu = NOT_IN_SUB_MENU;
+
+
+  //by default 6 - not in sub sub menu
+  int selected_sub_sub_menu = NOT_IN_SUB_SUB_MENU;
+
+
+  char menu_loaded[5][30];
+
 
 public:
+  int main_menu_cursor = 0;
+  int sub_menu_cursor = 0;
+  int sub_sub_menu_cursor = 0;
+  int file_manager_cursor = 0;
+
+
+
+
 
   void main_menu() {
-    //---debug---//
-    debug.whatIsHappening(selected_sub_menu, "void main_menu. selected_sub_menu");
-    debug.whatIsHappening(selected_sub_sub_menu, "viod main_menu. selected_sub_sub_menu");
-
-    Navigate.navigate_menu(&main_menu_cursor, &menu_depth, &selected_sub_menu, &main_menu_length, &first_main_menu_print);
+    /*if(first_main_menu_print)
+    {
+      first_main_menu_print = false;
+      OLED.printMenu(main_menu_cursor, OLED.main_menu);
+    }
+    //step 1. Was any button pressed? Let's check that. If any button was pressed - we're taking actions
+    if(Handle_Buttons.checkButtons(buttons))
+    {
+      //Let's see what was pressed by looping through each button and taking actions if needed
+      for(int i = 0; i <= buttonsCount; ++i)
+      {
+        //UP or DOWN button was pressed. Let's move cursor
+        if(buttons[i] == UP || buttons[i] == DOWN)
+        {
+          //step 1. Move cursor
+          main_menu_cursor = cursorPosition(i, main_menu_cursor, main_menu_length);
+          //step 2. Set pressed button to NOT_PRESSED
+          buttons[i] = NOT_PRESSED;
+          //step 3. Print the menu
+          OLED.printMenu(main_menu_cursor, OLED.main_menu);
+        }
+        if(buttons[i] == SELECT)
+        {
+          first_main_menu_print = true;
+          buttons[i] = NOT_PRESSED;
+          menu_depth = SUB_MENU;
+          selected_sub_menu = main_menu_cursor;
+        }
+        if(buttons[i] == BACK)
+        {
+          idiot_meter += 1;
+        }
+      }
+    }*/
   }
+
 
   void sub_menu() {
-    //---debug---//
-    debug.whatIsHappening(selected_sub_menu, "void sub_menu. selected_sub_menu");
-    debug.whatIsHappening(selected_sub_sub_menu, "viod sub_menu. selected_sub_sub_menu");
 
-    Navigate.navigate_menu(&sub_menu_cursor, &menu_depth, &selected_sub_sub_menu, &sub_menu_length, &first_sub_menu_print);
+    /*  //let's see what's selected and then let's see what can or cannot we do about that
+    if(SUB_MENUS.checkSelectedSubMenu(selected_sub_menu) == START_RIDE)
+    {
+      //Start Ride has been selected - no sub menu here, straight into hell, I meant into riding mode
+      menu_depth = RIDING;
+      //set riding_mode flag and call it a day, respective method will take care from this point on
+      riding_mode = true;
+    }
+    else
+    {
+      //step 1. Let's print sub menu if it wasn't printed yet
+      if(first_sub_menu_print)
+      {
+        first_sub_menu_print = false;
+        OLED.printSubMenu(selected_sub_menu, sub_menu_cursor);
+      }
+      //step 2. Let's check if any button was pressed
+      //step 1. Was any button pressed? Let's check that. If any button was pressed - we're taking actions
+    if(Handle_Buttons.checkButtons(buttons))
+    {
+      //Let's see what was pressed by looping through each button and taking actions if needed
+      for(int i = 0; i <= buttonsCount; ++i)
+      {
+        //UP or DOWN button was pressed. Let's move cursor
+        if(buttons[i] == UP || buttons[i] == DOWN)
+        {
+          //step 1. Move cursor
+          sub_menu_cursor = cursorPosition(i, sub_menu_cursor, sub_menu_length);
+          //step 2. Set pressed button to NOT_PRESSED
+          buttons[i] = NOT_PRESSED;
+          //step 3. Print the menu
+          OLED.printSubMenu(selected_sub_menu, sub_menu_cursor);
+        }
+        if(buttons[SELECT] == SELECT)
+        {
+          buttons[i] = NOT_PRESSED;
+          menu_depth = SUB_SUB_MENU;
+          selected_sub_sub_menu = sub_menu_cursor;
+          first_sub_menu_print = true;
+
+
+        }
+        if(buttons[BACK] == BACK)
+        {
+          first_sub_menu_print = true;
+          buttons[i] = NOT_PRESSED;
+          menu_depth = MAIN_MENU;
+        }
+      }
+    }
+    }
+*/
   }
+
 
   void sub_sub_menu() {
-    //---debug---//
-    debug.whatIsHappening(selected_sub_menu, "void sub_sub_menu. selected_sub_menu");
-    debug.whatIsHappening(selected_sub_sub_menu, "viod sub_sub_menu. selected_sub_sub_menu");
     //step 1. Check to which sub menu should be displayed list of sub sub menus and take actions from there
-    SUB_MENUS.checkSelectedSubSubMenu(&selected_sub_menu, &selected_sub_sub_menu, &menu_depth);
+    SUB_MENUS.checkSelectedSubSubMenu(selected_sub_menu, selected_sub_sub_menu, menu_depth);
   }
 
+
   void file_manager() {
+    /*if(first_file_manager_print)
+ {
+  first_file_manager_print = false;
+  OLED.printMenu(file_manager_cursor, OLED.file_manager_items);
+ }
+ if(Handle_Buttons.checkButtons(buttons))
+    {
+      //Let's see what was pressed by looping through each button and taking actions if needed
+      for(int i = 0; i <= buttonsCount; ++i)
+      {
+        //UP or DOWN button was pressed. Let's move cursor
+        if(buttons[i] == UP || buttons[i] == DOWN)
+        {
+          //step 1. Move cursor
+          file_manager_cursor = cursorPosition(i, file_manager_cursor, main_menu_length);
+          //step 2. Set pressed button to NOT_PRESSED
+          buttons[i] = NOT_PRESSED;
+          //step 3. Print the menu
+          OLED.printMenu(file_manager_cursor, OLED.file_manager_items);
+        }
+        if(buttons[i] == SELECT)
+        {
+         
+        }
+        if(buttons[i] == BACK)
+        {
+          first_sub_menu_print = true;
+          first_file_manager_print = true;
+          buttons[i] = NOT_PRESSED;
+          menu_depth = SUB_MENU;
+        }
+      }
+    }*/
   }
+
 
   void whereWeAreAt() {
     //check the menu depth and call a respective method
@@ -1051,17 +1119,23 @@ public:
     if (menu_depth == FILE_MANAGER) { file_manager(); }
   }
 
+
+
+
+
   void status_check() {
     //step 1. Let's see where we are and let's take some actions from there
     whereWeAreAt();
   }
 };
 
+
 HANDLE_BUTTONS Handle_Buttons;
 HANDLE_ON_DISPLAY_PRINT OLED;
 RIDE Ride;
 HANDLE_MENU MENU;
 FileSystemReadAndWrite FS_Handling;
+
 
 void setup() {
   Serial.begin(115200);
@@ -1073,14 +1147,19 @@ void setup() {
   }
   display.setBuffers(bufferA, bufferB);
 
+
   analogReadResolution(12);
   analogSetPinAttenuation(BATTERY, ADC_11db);
+
+
+
 
   pinMode(BUTTON_UP, INPUT_PULLUP);
   pinMode(BUTTON_DOWN, INPUT_PULLUP);
   pinMode(BUTTON_SELECT, INPUT_PULLUP);
   pinMode(BUTTON_BACK, INPUT_PULLUP);
   pinMode(REED_SWITCH, INPUT);
+
 
   //async press detecting
   event_loop.onInterrupt(BUTTON_UP, FALLING, [] {
@@ -1108,6 +1187,7 @@ void setup() {
     Handle_Buttons.onButton(BACK);
   });
 
+
   //async reed switch close detection
   event_loop.onInterrupt(REED_SWITCH, FALLING, [] {
     unsigned long now = millis();
@@ -1117,7 +1197,10 @@ void setup() {
   });
 }
 
+
 void loop() {
+
+
   event_loop.tick();
   MENU.status_check();
 }
